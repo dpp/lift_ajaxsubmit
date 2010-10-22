@@ -18,34 +18,33 @@ import net.liftweb.mapper._
 import Helpers._
 import example.model._
 
-object user extends SessionVar[User](User.currentUser.get)
+object user extends RequestVar[User](User.currentUser.get)
 
 class Users {
     def render(xhtml: NodeSeq): NodeSeq = {
         User.findAll.flatMap(u => 
        	   bind ("c", xhtml,
-  	         "name" -> Text(u.niceName),
-       		 "edit" -> SHtml.a(() => { user.set(u);S.runTemplate(List("_edit")).map(ns => ModalDialog(ns)) openOr Alert("Error") }, Text("Edit"))))
+  	         "name" -> u.niceName,
+       		 "edit" -> SHtml.a(() => { user.doWith(u) {
+                   S.runTemplate(List("_edit")).map(ns => ModalDialog(ns)) openOr Alert("Error") }}, 
+                                   Text("Edit"))))
     }
 }
 
-class Edit extends StatefulSnippet {
-    
-    def dispatch = {
-        case _ => render _
+class Edit {
+  def render (xhtml: NodeSeq): NodeSeq = {
+    val u = user.is
+
+    def doSave() = {
+      u.save
+      Unblock & RedirectTo("/index")
     }
     
-    def render (xhtml: NodeSeq): NodeSeq = {
-        def doSave() = {
-        	user.is.save
-        	redirectTo("index.html")
-        }
-        
-        bind("form", xhtml,
-             "firstName" -> SHtml.text(user.is.firstName.toString, v => user.is.firstName(v)),
-             "lastName" -> SHtml.text(user.is.lastName.toString, v => user.is.lastName(v)),
-             "save" -> SHtml.ajaxSubmit("Save", doSave),
-             "close" -> SHtml.ajaxButton(Text("Close"), () => Unblock))
-    }
+    bind("form", xhtml,
+         "firstName" -> u.firstName.toForm,
+         "lastName" -> u.lastName.toForm,
+         "save" -> (SHtml.hidden(doSave) ++ SHtml.submit("Save", () => {})),
+         "close" -> SHtml.ajaxButton(Text("Close"), () => Unblock))
+  }
 }
 
